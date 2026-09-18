@@ -172,3 +172,8 @@ def handler(request):
                 'type': type(e).__name__
             })
         }
+
+# Vercel Python Runtime v3 requires explicit exports
+__all__ = ['handler']
+app = handler
+application = handler
