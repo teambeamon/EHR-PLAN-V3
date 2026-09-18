@@ -2,7 +2,8 @@ import json
 import os
 from libsql import Client
 
-def handler(request):
+
+async def handler(request):
     # Initialize Turso client
     turso = Client(
         url=os.environ.get("TURSO_URL", "libsql://localhost"),
