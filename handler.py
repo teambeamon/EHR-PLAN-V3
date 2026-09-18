@@ -1,42 +1,51 @@
 import json
 import os
 import requests
+import traceback
 
 
 async def handler(request):
-    # Get Turso configuration from environment
-    db_url = os.environ.get("TURSO_DATABASE_URL", os.environ.get("TURSO_URL", None))
-    auth_token = os.environ.get("TURSO_AUTH_TOKEN", None)
-    
-    # For debugging: return env info if something is missing
-    if not db_url or not auth_token:
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({
-                'error': 'Missing environment variables',
-                'TURSO_DATABASE_URL': db_url,
-                'TURSO_AUTH_TOKEN': '*** REDACTED ***' if auth_token else None
-            })
-        }
-    
-    # Convert libsql:// URL to HTTPS URL for REST API
-    if db_url and db_url.startswith('libsql://'):
-        http_url = db_url.replace('libsql://', 'https://')
-    else:
-        http_url = db_url
-
-    # Get the path from the request
-    path = request.path
-    method = request.method
-
     try:
-        # Route handling
+        # Step 1: Check environment variables
+        db_url = os.environ.get("TURSO_DATABASE_URL", os.environ.get("TURSO_URL", None))
+        auth_token = os.environ.get("TURSO_AUTH_TOKEN", None)
+        
+        if not db_url:
+            return {
+                'statusCode': 500,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({
+                    'error': 'Missing TURSO_DATABASE_URL',
+                    'available_keys': list(os.environ.keys())[:10]
+                })
+            }
+        
+        if not auth_token:
+            return {
+                'statusCode': 500,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({
+                    'error': 'Missing TURSO_AUTH_TOKEN'
+                })
+            }
+        
+        # Step 2: Convert URL
+        if db_url.startswith('libsql://'):
+            http_url = db_url.replace('libsql://', 'https://')
+        else:
+            http_url = db_url
+        
+        # Step 3: Get request info
+        path = getattr(request, 'path', '/')
+        method = getattr(request, 'method', 'GET')
+        
+        # Step 4: Handle routes
         if path.startswith("/api/salles") and method == "GET":
             response = requests.post(
                 f"{http_url}/v2/sql",
                 json={"query": "SELECT * FROM salles"},
-                headers={"Authorization": f"Bearer {auth_token}"}
+                headers={"Authorization": f"Bearer {auth_token}"},
+                timeout=10
             )
             if response.status_code == 200:
                 data = response.json()
@@ -57,7 +66,8 @@ async def handler(request):
             response = requests.post(
                 f"{http_url}/v2/sql",
                 json={"query": "SELECT * FROM matchs"},
-                headers={"Authorization": f"Bearer {auth_token}"}
+                headers={"Authorization": f"Bearer {auth_token}"},
+                timeout=10
             )
             if response.status_code == 200:
                 data = response.json()
@@ -86,7 +96,8 @@ async def handler(request):
                     GROUP BY e.id, e.nom, e.logo
                     ORDER BY victoires DESC
                 """},
-                headers={"Authorization": f"Bearer {auth_token}"}
+                headers={"Authorization": f"Bearer {auth_token}"},
+                timeout=10
             )
             if response.status_code == 200:
                 data = response.json()
@@ -104,11 +115,12 @@ async def handler(request):
                 }
 
         elif path.startswith("/api/salles") and method == "POST":
-            body = json.loads(request.body)
+            body = json.loads(request.body) if hasattr(request, 'body') and request.body else {}
             response = requests.post(
                 f"{http_url}/v2/sql",
                 json={"query": "INSERT INTO salles (nom, capacite, type) VALUES (?, ?, ?)", "args": [body.get('nom'), body.get('capacite'), body.get('type', 'Standard')]},
-                headers={"Authorization": f"Bearer {auth_token}"}
+                headers={"Authorization": f"Bearer {auth_token}"},
+                timeout=10
             )
             if response.status_code in [200, 201]:
                 return {
@@ -124,11 +136,12 @@ async def handler(request):
                 }
 
         elif path.startswith("/api/matchs") and method == "POST":
-            body = json.loads(request.body)
+            body = json.loads(request.body) if hasattr(request, 'body') and request.body else {}
             response = requests.post(
                 f"{http_url}/v2/sql",
                 json={"query": "INSERT INTO matchs (salle_id, equipe1_id, equipe2_id, date, statut) VALUES (?, ?, ?, ?, ?)", "args": [body.get('salle_id'), body.get('equipe1_id'), body.get('equipe2_id'), body.get('date'), body.get('statut', 'programmé')]},
-                headers={"Authorization": f"Bearer {auth_token}"}
+                headers={"Authorization": f"Bearer {auth_token}"},
+                timeout=10
             )
             if response.status_code in [200, 201]:
                 return {
@@ -147,14 +160,17 @@ async def handler(request):
             return {
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({'error': 'Not found'})
+                'body': json.dumps({'error': 'Not found', 'path': path, 'method': method})
             }
 
     except Exception as e:
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': str(e)})
+            'body': json.dumps({
+                'error': str(e),
+                'type': type(e).__name__
+            })
         }
 
 # Vercel Python requires one of these to be defined at the top level
