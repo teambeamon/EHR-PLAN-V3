@@ -6,7 +6,7 @@ from libsql import Client
 async def handler(request):
     # Initialize Turso client
     turso = Client(
-        url=os.environ.get("TURSO_URL", "libsql://localhost"),
+        url=os.environ.get("TURSO_DATABASE_URL", os.environ.get("TURSO_URL", "libsql://localhost")),
         auth_token=os.environ.get("TURSO_AUTH_TOKEN")
     )
 
