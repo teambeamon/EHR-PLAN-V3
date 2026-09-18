@@ -86,3 +86,7 @@ async def handler(request):
             'headers': {'Content-Type': 'application/json'},
             'body': json.dumps({'error': str(e)})
         }
+
+# Vercel Python requires one of these to be defined at the top level
+app = handler
+application = handler
