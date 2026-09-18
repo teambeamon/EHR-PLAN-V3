@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "handler.py",
+      "src": "api/index.py",
       "use": "@vercel/python",
       "config": { "maxDuration": 60 }
     },
@@ -19,7 +19,7 @@
     },
     {
       "src": "/api/(.*)",
-      "dest": "handler.py"
+      "dest": "api/index.py"
     },
     {
       "src": "/(.*)",
