@@ -4,11 +4,31 @@ from libsql import Client
 
 
 async def handler(request):
+    # Debug: Check if environment variables are available
+    db_url = os.environ.get("TURSO_DATABASE_URL", os.environ.get("TURSO_URL", "libsql://localhost"))
+    auth_token = os.environ.get("TURSO_AUTH_TOKEN")
+    
+    # For debugging: return env info if something is missing
+    if not db_url or not auth_token:
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({
+                'error': 'Missing environment variables',
+                'TURSO_DATABASE_URL': db_url,
+                'TURSO_AUTH_TOKEN': '*** REDACTED ***' if auth_token else None
+            })
+        }
+    
     # Initialize Turso client
-    turso = Client(
-        url=os.environ.get("TURSO_DATABASE_URL", os.environ.get("TURSO_URL", "libsql://localhost")),
-        auth_token=os.environ.get("TURSO_AUTH_TOKEN")
-    )
+    try:
+        turso = Client(url=db_url, auth_token=auth_token)
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'error': f'Failed to create Turso client: {str(e)}'})
+        }
 
     # Get the path from the request
     path = request.path
