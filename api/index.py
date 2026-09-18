@@ -4,7 +4,7 @@ import requests
 import traceback
 
 
-async def handler(request):
+def handler(request):
     try:
         # Step 1: Check environment variables
         db_url = os.environ.get("TURSO_DATABASE_URL", os.environ.get("TURSO_URL", None))
