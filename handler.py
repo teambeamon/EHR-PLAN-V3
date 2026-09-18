@@ -172,7 +172,3 @@ async def handler(request):
                 'type': type(e).__name__
             })
         }
-
-# Vercel Python requires one of these to be defined at the top level
-app = handler
-application = handler
