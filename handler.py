@@ -1,12 +1,12 @@
 import json
 import os
-from libsql import Client
+import requests
 
 
 async def handler(request):
-    # Debug: Check if environment variables are available
-    db_url = os.environ.get("TURSO_DATABASE_URL", os.environ.get("TURSO_URL", "libsql://localhost"))
-    auth_token = os.environ.get("TURSO_AUTH_TOKEN")
+    # Get Turso configuration from environment
+    db_url = os.environ.get("TURSO_DATABASE_URL", os.environ.get("TURSO_URL", None))
+    auth_token = os.environ.get("TURSO_AUTH_TOKEN", None)
     
     # For debugging: return env info if something is missing
     if not db_url or not auth_token:
@@ -20,15 +20,11 @@ async def handler(request):
             })
         }
     
-    # Initialize Turso client
-    try:
-        turso = Client(url=db_url, auth_token=auth_token)
-    except Exception as e:
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': f'Failed to create Turso client: {str(e)}'})
-        }
+    # Convert libsql:// URL to HTTPS URL for REST API
+    if db_url and db_url.startswith('libsql://'):
+        http_url = db_url.replace('libsql://', 'https://')
+    else:
+        http_url = db_url
 
     # Get the path from the request
     path = request.path
@@ -37,61 +33,115 @@ async def handler(request):
     try:
         # Route handling
         if path.startswith("/api/salles") and method == "GET":
-            result = turso.execute("SELECT * FROM salles")
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({'salles': result.rows})
-            }
+            response = requests.post(
+                f"{http_url}/v2/sql",
+                json={"query": "SELECT * FROM salles"},
+                headers={"Authorization": f"Bearer {auth_token}"}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                rows = data.get('result', []).get('rows', []) if isinstance(data.get('result'), dict) else []
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'salles': rows})
+                }
+            else:
+                return {
+                    'statusCode': response.status_code,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'error': response.text})
+                }
 
         elif path.startswith("/api/matchs") and method == "GET":
-            result = turso.execute("SELECT * FROM matchs")
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({'matchs': result.rows})
-            }
+            response = requests.post(
+                f"{http_url}/v2/sql",
+                json={"query": "SELECT * FROM matchs"},
+                headers={"Authorization": f"Bearer {auth_token}"}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                rows = data.get('result', []).get('rows', []) if isinstance(data.get('result'), dict) else []
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'matchs': rows})
+                }
+            else:
+                return {
+                    'statusCode': response.status_code,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'error': response.text})
+                }
 
         elif path.startswith("/api/classements") and method == "GET":
-            result = turso.execute("""
-                SELECT e.*, 
-                       COUNT(m.id) as matchs_joues,
-                       SUM(CASE WHEN m.gagnant_id = e.id THEN 1 ELSE 0 END) as victoires
-                FROM équipes e 
-                LEFT JOIN matchs m ON e.id = m.equipe1_id OR e.id = m.equipe2_id
-                GROUP BY e.id, e.nom, e.logo
-                ORDER BY victoires DESC
-            """)
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({'classements': result.rows})
-            }
+            response = requests.post(
+                f"{http_url}/v2/sql",
+                json={"query": """
+                    SELECT e.*, 
+                           COUNT(m.id) as matchs_joues,
+                           SUM(CASE WHEN m.gagnant_id = e.id THEN 1 ELSE 0 END) as victoires
+                    FROM équipes e 
+                    LEFT JOIN matchs m ON e.id = m.equipe1_id OR e.id = m.equipe2_id
+                    GROUP BY e.id, e.nom, e.logo
+                    ORDER BY victoires DESC
+                """},
+                headers={"Authorization": f"Bearer {auth_token}"}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                rows = data.get('result', []).get('rows', []) if isinstance(data.get('result'), dict) else []
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'classements': rows})
+                }
+            else:
+                return {
+                    'statusCode': response.status_code,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'error': response.text})
+                }
 
         elif path.startswith("/api/salles") and method == "POST":
             body = json.loads(request.body)
-            turso.execute(
-                "INSERT INTO salles (nom, capacite, type) VALUES (?, ?, ?)",
-                [body.get('nom'), body.get('capacite'), body.get('type', 'Standard')]
+            response = requests.post(
+                f"{http_url}/v2/sql",
+                json={"query": "INSERT INTO salles (nom, capacite, type) VALUES (?, ?, ?)", "args": [body.get('nom'), body.get('capacite'), body.get('type', 'Standard')]},
+                headers={"Authorization": f"Bearer {auth_token}"}
             )
-            return {
-                'statusCode': 201,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({'message': 'Salle créée'})
-            }
+            if response.status_code in [200, 201]:
+                return {
+                    'statusCode': 201,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'message': 'Salle créée'})
+                }
+            else:
+                return {
+                    'statusCode': response.status_code,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'error': response.text})
+                }
 
         elif path.startswith("/api/matchs") and method == "POST":
             body = json.loads(request.body)
-            turso.execute(
-                "INSERT INTO matchs (salle_id, equipe1_id, equipe2_id, date, statut) VALUES (?, ?, ?, ?, ?)",
-                [body.get('salle_id'), body.get('equipe1_id'), body.get('equipe2_id'), 
-                 body.get('date'), body.get('statut', 'programmé')]
+            response = requests.post(
+                f"{http_url}/v2/sql",
+                json={"query": "INSERT INTO matchs (salle_id, equipe1_id, equipe2_id, date, statut) VALUES (?, ?, ?, ?, ?)", "args": [body.get('salle_id'), body.get('equipe1_id'), body.get('equipe2_id'), body.get('date'), body.get('statut', 'programmé')]},
+                headers={"Authorization": f"Bearer {auth_token}"}
             )
-            return {
-                'statusCode': 201,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({'message': 'Match créé'})
-            }
+            if response.status_code in [200, 201]:
+                return {
+                    'statusCode': 201,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'message': 'Match créé'})
+                }
+            else:
+                return {
+                    'statusCode': response.status_code,
+                    'headers': {'Content-Type': 'application/json'},
+                    'body': json.dumps({'error': response.text})
+                }
 
         else:
             return {
