@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
-import { createClient } from "@libsql/client";
 
 export default function SallesPage() {
   const [salles, setSalles] = useState<any[]>([]);
@@ -12,16 +11,12 @@ export default function SallesPage() {
   useEffect(() => {
     async function fetchSalles() {
       try {
-        const turso = createClient({
-          url: process.env.NEXT_PUBLIC_TURSO_URL || "libsql://localhost",
-          authToken: process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN,
-        });
-
-        const result = await turso.execute(
-          "SELECT * FROM salles ORDER BY nom ASC"
-        );
-        
-        setSalles(result.rows as any[]);
+        const response = await fetch('/api/salles');
+        if (!response.ok) {
+          throw new Error('Failed to fetch salles');
+        }
+        const result = await response.json();
+        setSalles(result.salles || []);
         setLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch salles");

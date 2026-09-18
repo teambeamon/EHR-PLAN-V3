@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
-import { createClient } from "@libsql/client";
 
 export default function MatchesPage() {
   const [matches, setMatches] = useState<any[]>([]);
@@ -12,19 +11,12 @@ export default function MatchesPage() {
   useEffect(() => {
     async function fetchMatches() {
       try {
-        const turso = createClient({
-          url: process.env.NEXT_PUBLIC_TURSO_URL || "libsql://localhost",
-          authToken: process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN,
-        });
-
-        const result = await turso.execute(
-          `SELECT m.*, s.nom as salle_nom, s.capacite as salle_capacite 
-           FROM matchs m 
-           JOIN salles s ON m.salle_id = s.id 
-           ORDER BY m.date DESC`
-        );
-        
-        setMatches(result.rows as any[]);
+        const response = await fetch('/api/matchs');
+        if (!response.ok) {
+          throw new Error('Failed to fetch matches');
+        }
+        const result = await response.json();
+        setMatches(result.matchs || []);
         setLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch matches");

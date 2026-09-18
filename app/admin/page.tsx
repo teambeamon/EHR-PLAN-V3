@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
-import { createClient } from "@libsql/client";
 
 export default function AdminPage() {
   const [salles, setSalles] = useState<any[]>([]);
@@ -16,16 +15,20 @@ export default function AdminPage() {
 
   async function fetchData() {
     try {
-      const turso = createClient({
-        url: process.env.NEXT_PUBLIC_TURSO_URL || "libsql://localhost",
-        authToken: process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN,
-      });
-
-      const sallesResult = await turso.execute("SELECT * FROM salles");
-      const matchesResult = await turso.execute("SELECT * FROM matchs");
+      const [sallesResponse, matchesResponse] = await Promise.all([
+        fetch('/api/salles'),
+        fetch('/api/matchs')
+      ]);
       
-      setSalles(sallesResult.rows as any[]);
-      setMatches(matchesResult.rows as any[]);
+      if (!sallesResponse.ok || !matchesResponse.ok) {
+        throw new Error('Failed to fetch data');
+      }
+      
+      const sallesResult = await sallesResponse.json();
+      const matchesResult = await matchesResponse.json();
+      
+      setSalles(sallesResult.salles || []);
+      setMatches(matchesResult.matchs || []);
       setLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch data");

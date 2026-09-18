@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@libsql/client";
 
 export default function Home() {
   const [data, setData] = useState<any[]>([]);
@@ -11,15 +10,13 @@ export default function Home() {
   useEffect(() => {
     async function fetchData() {
       try {
-        // Initialize Turso client
-        const turso = createClient({
-          url: process.env.NEXT_PUBLIC_TURSO_URL || "libsql://localhost",
-          authToken: process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN,
-        });
-
-        // Test connection
-        const result = await turso.execute("SELECT * FROM salles LIMIT 10");
-        setData(result.rows as any[]);
+        // Use API endpoint instead of direct Turso client
+        const response = await fetch('/api/salles');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        setData(result.salles || []);
         setLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch data");

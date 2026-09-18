@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
-import { createClient } from "@libsql/client";
 
 export default function ClassementsPage() {
   const [classements, setClassements] = useState<any[]>([]);
@@ -12,23 +11,12 @@ export default function ClassementsPage() {
   useEffect(() => {
     async function fetchClassements() {
       try {
-        const turso = createClient({
-          url: process.env.NEXT_PUBLIC_TURSO_URL || "libsql://localhost",
-          authToken: process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN,
-        });
-
-        const result = await turso.execute(
-          `SELECT e.*, 
-                  COUNT(m.id) as matchs_joues,
-                  SUM(CASE WHEN m.gagnant_id = e.id THEN 1 ELSE 0 END) as victoires,
-                  SUM(CASE WHEN m.gagnant_id != e.id AND m.gagnant_id IS NOT NULL THEN 1 ELSE 0 END) as défaites
-           FROM équipes e 
-           LEFT JOIN matchs m ON e.id = m.equipe1_id OR e.id = m.equipe2_id
-           GROUP BY e.id, e.nom, e.logo
-           ORDER BY victoires DESC, défaites ASC`
-        );
-        
-        setClassements(result.rows as any[]);
+        const response = await fetch('/api/classements');
+        if (!response.ok) {
+          throw new Error('Failed to fetch classements');
+        }
+        const result = await response.json();
+        setClassements(result.classements || []);
         setLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch classements");
