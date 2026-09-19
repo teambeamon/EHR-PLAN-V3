@@ -469,6 +469,69 @@ def handler(request):
         }
 
 # Vercel Python Runtime v3 requires explicit exports
-__all__ = ['handler']
-app = handler
-application = handler
+
+# For Vercel Serverless Functions, we define app as the WSGI callable
+# Vercel expects: app(environ, start_response) for WSGI
+# Our handler expects: handler(request) where request has .method, .path, .body, .headers
+
+def app(environ, start_response):
+    """
+    WSGI application entry point for Vercel Python Runtime.
+    Vercel expects a WSGI callable: app(environ, start_response)
+    """
+    from io import BytesIO
+    
+    # Extract method and path from environ
+    method = environ.get('REQUEST_METHOD', 'GET')
+    path = environ.get('PATH_INFO', '/')
+    
+    # Read body for POST/PUT/DELETE
+    body = ''
+    if method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        try:
+            content_length = int(environ.get('CONTENT_LENGTH', 0))
+        except (ValueError, TypeError):
+            content_length = 0
+        
+        if content_length > 0:
+            wsgi_input = environ.get('wsgi.input')
+            if wsgi_input:
+                body = wsgi_input.read(content_length).decode('utf-8')
+    
+    # Build headers dict from environ
+    headers = {}
+    for key, value in environ.items():
+        if key.startswith('HTTP_'):
+            header_name = key[5:].lower().replace('_', '-')
+            headers[header_name] = value
+    
+    # Create a request object that matches what our handler expects
+    class VercelRequest:
+        def __init__(self):
+            self.method = method
+            self.path = path
+            self.body = body
+            self.headers = headers
+    
+    request = VercelRequest()
+    
+    # Call our handler
+    result = handler(request)
+    
+    # Convert result to WSGI format
+    status_code = result.get('statusCode', 500)
+    status_text = {200: 'OK', 400: 'Bad Request', 401: 'Unauthorized', 404: 'Not Found', 500: 'Internal Server Error'}.get(status_code, 'OK')
+    status = f"{status_code} {status_text}"
+    
+    response_headers = list(result.get('headers', {}).items())
+    start_response(status, response_headers)
+    
+    # Return body as bytes
+    body_content = result.get('body', '')
+    if isinstance(body_content, str):
+        body_content = body_content.encode('utf-8')
+    
+    return [body_content]
+
+# For compatibility, also export handler
+handler = handler
