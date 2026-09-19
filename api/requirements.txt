@@ -1,0 +1,6 @@
+# EHR Plan V3 - Backend Dependencies
+# Python Serverless Function for Vercel
+
+requests>=2.28.0
+
+

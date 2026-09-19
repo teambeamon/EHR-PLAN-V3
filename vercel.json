@@ -4,26 +4,24 @@
     {
       "src": "api/index.py",
       "use": "@vercel/python",
-      "config": { "maxDuration": 60 }
+      "config": {
+        "maxDuration": 60,
+        "memory": 512
+      }
     },
     {
       "src": "package.json",
-      "use": "@vercel/next",
-      "config": { "installCommand": "npm install" }
+      "use": "@vercel/next"
     }
   ],
   "routes": [
-    {
-      "src": "/(.*\\.(?:css|js|ttf|woff2?|png|jpg|jpeg|gif|svg|ico))$",
-      "dest": "$1"
-    },
     {
       "src": "/api/(.*)",
       "dest": "api/index.py"
     },
     {
       "src": "/(.*)",
-      "dest": "/"
+      "dest": "$"
     }
   ]
 }

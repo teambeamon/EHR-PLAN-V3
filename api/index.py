@@ -7,8 +7,9 @@ import traceback
 def handler(request):
     try:
         # Step 1: Check environment variables
-        db_url = os.environ.get("TURSO_DATABASE_URL", os.environ.get("TURSO_URL", None))
-        auth_token = os.environ.get("TURSO_AUTH_TOKEN", None)
+        # Supports both TURSO_URL (Vercel Serverless) and NEXT_PUBLIC_TURSO_URL (for frontend compatibility)
+        db_url = os.environ.get("TURSO_URL", os.environ.get("NEXT_PUBLIC_TURSO_URL", None))
+        auth_token = os.environ.get("TURSO_AUTH_TOKEN", os.environ.get("NEXT_PUBLIC_TURSO_AUTH_TOKEN", None))
         
         if not db_url:
             return {
