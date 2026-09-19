@@ -57,7 +57,8 @@ def _db_execute(db_conn, sql: str, params=None):
 
 
 def _init_db(db_conn):
-    """Initialize database tables for users and sessions"""
+    """Initialize database tables for users, sessions, and application data"""
+    # Users table
     _db_execute(db_conn, """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,6 +69,8 @@ def _init_db(db_conn):
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    
+    # Sessions table
     _db_execute(db_conn, """
         CREATE TABLE IF NOT EXISTS sessions (
             token TEXT PRIMARY KEY,
@@ -75,6 +78,42 @@ def _init_db(db_conn):
             expires_at TEXT NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Salles table
+    _db_execute(db_conn, """
+        CREATE TABLE IF NOT EXISTS salles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            capacite INTEGER DEFAULT 0,
+            type TEXT DEFAULT 'Standard'
+        )
+    """)
+    
+    # Équipes table
+    _db_execute(db_conn, """
+        CREATE TABLE IF NOT EXISTS équipes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            logo TEXT
+        )
+    """)
+    
+    # Matchs table
+    _db_execute(db_conn, """
+        CREATE TABLE IF NOT EXISTS matchs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            salle_id INTEGER NOT NULL,
+            équipe1_id INTEGER,
+            équipe2_id INTEGER,
+            date TEXT NOT NULL,
+            statut TEXT DEFAULT 'programmé',
+            gagnant_id INTEGER,
+            FOREIGN KEY (salle_id) REFERENCES salles(id),
+            FOREIGN KEY (équipe1_id) REFERENCES équipes(id),
+            FOREIGN KEY (équipe2_id) REFERENCES équipes(id),
+            FOREIGN KEY (gagnant_id) REFERENCES équipes(id)
         )
     """)
     
@@ -87,6 +126,28 @@ def _init_db(db_conn):
                 INSERT INTO users (username, hashed_password, role, email, created_at)
                 VALUES (?, ?, ?, ?, ?)
             """, ["admin", hashed, "admin", "admin@ehr-plan.local", datetime.now().isoformat()])
+    except:
+        pass
+    
+    # Insert sample data if tables are empty
+    try:
+        result = _db_execute(db_conn, "SELECT COUNT(*) as count FROM salles")
+        if result and result.get('result') and result['result']['rows'][0]['count'] == 0:
+            _db_execute(db_conn, "INSERT INTO salles (nom, capacite, type) VALUES (?, ?, ?)", ["Salle A", 20, "Compétition"])
+            _db_execute(db_conn, "INSERT INTO salles (nom, capacite, type) VALUES (?, ?, ?)", ["Salle B", 15, "Entraînement"])
+            
+        result = _db_execute(db_conn, "SELECT COUNT(*) as count FROM équipes")
+        if result and result.get('result') and result['result']['rows'][0]['count'] == 0:
+            _db_execute(db_conn, "INSERT INTO équipes (nom) VALUES (?)", ["Équipe Rouge"])
+            _db_execute(db_conn, "INSERT INTO équipes (nom) VALUES (?)", ["Équipe Bleue"])
+            _db_execute(db_conn, "INSERT INTO équipes (nom) VALUES (?)", ["Équipe Verte"])
+            
+        result = _db_execute(db_conn, "SELECT COUNT(*) as count FROM matchs")
+        if result and result.get('result') and result['result']['rows'][0]['count'] == 0:
+            _db_execute(db_conn, """
+                INSERT INTO matchs (salle_id, équipe1_id, équipe2_id, date, statut)
+                VALUES (?, ?, ?, ?, ?)
+            """, [1, 1, 2, datetime.now().isoformat(), "programmé"])
     except:
         pass
 
