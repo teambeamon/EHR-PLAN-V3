@@ -13,7 +13,8 @@ export default function Home() {
         // Use API endpoint instead of direct Turso client
         const response = await fetch('/api/salles');
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
         const result = await response.json();
         setData(result.salles || []);

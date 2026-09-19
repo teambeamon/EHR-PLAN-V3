@@ -1,90 +1,84 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { validateSession, logout, getSessionToken } from "@/lib/session";
 
 export default function AdminPage() {
+  const router = useRouter();
   const [salles, setSalles] = useState<any[]>([]);
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState("");
+  const [user, setUser] = useState<{username: string; role: string} | null>(null);
 
-  const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "admin123";
-
-  async function fetchData() {
-    try {
-      const [sallesResponse, matchesResponse] = await Promise.all([
-        fetch('/api/salles'),
-        fetch('/api/matchs')
-      ]);
-      
-      if (!sallesResponse.ok || !matchesResponse.ok) {
-        throw new Error('Failed to fetch data');
+  useEffect(() => {
+    async function checkAuth() {
+      const token = getSessionToken();
+      if (!token) {
+        router.push('/login');
+        return;
       }
-      
-      const sallesResult = await sallesResponse.json();
-      const matchesResult = await matchesResponse.json();
-      
-      setSalles(sallesResult.salles || []);
-      setMatches(matchesResult.matchs || []);
-      setLoading(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch data");
-      setLoading(false);
-    }
-  }
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      fetchData();
-    } else {
-      setError("Mot de passe incorrect");
+      try {
+        const currentUser = await validateSession();
+        if (!currentUser) {
+          router.push('/login');
+          return;
+        }
+        
+        if (currentUser.role !== 'admin') {
+          setError('Accès refusé: réservé aux administrateurs');
+          setLoading(false);
+          return;
+        }
+        
+        setUser(currentUser);
+        await fetchData();
+      } catch (err) {
+        console.error('Auth check error:', err);
+        router.push('/login');
+      }
     }
+
+    async function fetchData() {
+      try {
+        const [sallesResponse, matchesResponse] = await Promise.all([
+          fetch('/api/salles'),
+          fetch('/api/matchs')
+        ]);
+        
+        if (!sallesResponse.ok || !matchesResponse.ok) {
+          throw new Error('Failed to fetch data');
+        }
+        
+        const sallesResult = await sallesResponse.json();
+        const matchesResult = await matchesResponse.json();
+        
+        setSalles(sallesResult.salles || []);
+        setMatches(matchesResult.matchs || []);
+        setLoading(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fetch data");
+        setLoading(false);
+      }
+    }
+
+    checkAuth();
+  }, [router]);
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
   };
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md w-full max-w-md">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-            Connexion Admin
-          </h1>
-          <form onSubmit={handleLogin}>
-            <div className="mb-4">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Mot de passe
-              </label>
-              <input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
-            >
-              Se connecter
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         <Navbar />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center">Chargement des données...</div>
+          <div className="text-center">Vérification de l'authentification...</div>
         </main>
       </div>
     );
@@ -96,22 +90,38 @@ export default function AdminPage() {
         <Navbar />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="bg-red-100 dark:bg-red-900/30 p-4 rounded-md text-red-700 dark:text-red-300">
-            Erreur: {error}
+            {error}
           </div>
         </main>
       </div>
     );
   }
 
-  // Panneau admin (connecté)
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Navbar />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
-          Panneau d'administration
-        </h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Panneau d'administration
+          </h1>
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Connecté en tant que: <span className="font-medium">{user.username}</span>
+            </span>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors"
+            >
+              Déconnexion
+            </button>
+          </div>
+        </div>
 
         <div className="space-y-8">
           <section>
@@ -130,6 +140,9 @@ export default function AdminPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Capacité
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Type
+                      </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Actions
                       </th>
@@ -146,6 +159,9 @@ export default function AdminPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {salle.capacite}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {salle.type || "Standard"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-2">
@@ -179,6 +195,9 @@ export default function AdminPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Date
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Statut
+                      </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Actions
                       </th>
@@ -195,6 +214,9 @@ export default function AdminPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {match.date}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {match.statut}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-2">

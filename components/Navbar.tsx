@@ -1,10 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState<{username: string; role: string} | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    // Check for user in localStorage
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('ehr_user');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('ehr_session_token');
+    localStorage.removeItem('ehr_user');
+    setUser(null);
+    router.push('/');
+  };
 
   return (
     <nav className="bg-white dark:bg-gray-900 shadow-sm">
@@ -43,12 +63,29 @@ export default function Navbar() {
             >
               Classements
             </Link>
-            <Link
-              href="/admin"
-              className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
-              Admin
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  href="/admin"
+                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Admin
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-2 rounded-md text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  Déconnexion
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                className="px-3 py-2 rounded-md text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+              >
+                Connexion
+              </Link>
+            )}
           </div>
 
           <div className="flex items-center sm:hidden">
@@ -120,12 +157,35 @@ export default function Navbar() {
             >
               Classements
             </Link>
-            <Link
-              href="/admin"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
-              Admin
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  href="/admin"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Admin
+                </Link>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('ehr_session_token');
+                    localStorage.removeItem('ehr_user');
+                    setUser(null);
+                    setIsOpen(false);
+                    router.push('/');
+                  }}
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  Déconnexion
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                className="block px-3 py-2 rounded-md text-base font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+              >
+                Connexion
+              </Link>
+            )}
           </div>
         </div>
       )}
